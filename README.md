@@ -12,7 +12,7 @@ Or alternatively, to build the environment from a file,
 `bash environment.sh`
 
 ## Usage
-Put the truth tables under the ./truthtable directory. Add the net size in `experiments/net_config.py`
+Put the truth tables under the `truthtable/` directory. Add the net size in `experiments/net_config.py`
 
 Here is an example for generate a circuit.
 

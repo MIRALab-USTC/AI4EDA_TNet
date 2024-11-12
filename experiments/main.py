@@ -2,8 +2,6 @@ import argparse
 import math
 import random
 import os
-import json
-import sys
 
 import numpy as np
 import torch
@@ -11,7 +9,7 @@ import datetime
 from torch.utils.tensorboard import SummaryWriter
 
 from truth_table_datasets import TruthTableDataset
-from difflogic import TNet
+from model import TNet
 from net_config import tnet_size
 
 
@@ -42,7 +40,7 @@ def load_dataset(args):
     args.input_bits = input_bits
     args.output_bits = output_bits
     print(f'data: {args.dataset_dir} \n in bit = {input_bits}, output_bits bit = {output_bits}')
-    train_set = TruthTableDataset(random_data=False, input_nums=input_bits, truth_table_file = args.dataset_dir, truth_flip = args.truth_flip)
+    train_set = TruthTableDataset(input_nums=input_bits, truth_table_file = args.dataset_dir, truth_flip = args.truth_flip)
     test_set = train_set
 
     if input_bits <= args.batch_size:
@@ -105,16 +103,13 @@ def train(model, train_loader, loss_fn, optimizer, args, epoch, iteration=0, bes
         o_y = torch.abs(x.detach()-y_bs)
 
         if args.boolean_hardness_aware_loss_1 and best_acc > 0.95: 
-            o_y = torch.abs(x.detach()-y_bs) # 256*5
+            o_y = torch.abs(x.detach()-y_bs) 
             hard_example_weight = torch.exp(2 * (o_y - 0.3))
-
-
             loss_acc_each_node = hard_example_weight * loss_acc_each_node
 
         loss_acc_each_column = torch.sum(loss_acc_each_node, dim=0)
         loss_acc_each_y += loss_acc_each_column
         loss_acc = torch.sum(loss_acc_each_column)
-        
 
         if args.boolean_hardness_aware_loss_2 and best_acc >=0.99:
             if wrong_rate > 0:
@@ -146,11 +141,8 @@ def eval(model, test_loader, mode, args):
 
         wrong_elements = 0
         total_elements = 0
-
         correct_rows = 0
         total_rows = 0
-        wrong_column = torch.zeros([args.output_bits]).to('cuda')
-        different_elements_list = torch.empty([0], device='cuda')
 
         for _, (x_bs, y_bs) in enumerate(test_loader):
             x_bs = x_bs.to('cuda').to(torch.float32)
@@ -189,10 +181,10 @@ def get_args():
     parser.add_argument('--num_iterations', type=int, default=100000) 
     parser.add_argument('--eval_freq', type=int, default=100) 
 
-    # parser.add_argument('--down_k', type=int) # 网络初始宽度，重要参数
-    # parser.add_argument('--down_l', type=int) # 网络初始深度，重要参数
-    # parser.add_argument('--up_k', type=int, default=10) # tnet的上层宽度
-    # parser.add_argument('--up_l', type=int, default=20) # tnet的上层深度
+    # parser.add_argument('--down_k', type=int) # width of down layers
+    # parser.add_argument('--down_l', type=int) # depth of down layers
+    # parser.add_argument('--up_k', type=int, default=10) # width of up layers
+    # parser.add_argument('--up_l', type=int, default=20) # depth of up layers
 
     parser.add_argument('--regularized_skip_connection', type=bool, default=True, help='promote connections to closer nodes') 
 
@@ -206,7 +198,7 @@ def get_args():
     parser.add_argument('--save_model', type=bool, default=True)
     parser.add_argument('--save_model_freq', type=int, default=1000)
     parser.add_argument('--save_acc_threshold', type=bool, default=False, help='save results after acc=99')
-    parser.add_argument('--log_tb', type=bool, default=True) # 必须true
+    parser.add_argument('--log_tb', type=bool, default=True) 
 
     return parser.parse_args()
 
@@ -250,7 +242,6 @@ if __name__ == '__main__':
     ####################################################################################################################
 
     print(vars(args))
-    # print('hear loss + adaptive to biggest loss, loss/ wrong rate')
     assert args.num_iterations % args.eval_freq == 0, (
         f'iteration count ({args.num_iterations}) has to be divisible by evaluation frequency ({args.eval_freq})'
     )
@@ -312,7 +303,6 @@ if __name__ == '__main__':
 
                 if args.save_acc_threshold and args.save_model and best_acc >= thresholds_to_save[current_threshold_index]:
                     acc_str = int(best_acc * 1000)
-                    # save_path = os.path.join(args.save_dir, f"{iteration}_{acc_str}.pth")
                     torch.save(model, os.path.join(args.save_dir, f"{iteration}_{acc_str}.pth"))
                     print(f"Save model")
                     if current_threshold_index < len(thresholds_to_save) - 1:
